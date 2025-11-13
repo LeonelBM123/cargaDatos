@@ -1,0 +1,27 @@
+name: carga_datos
+description: "A new Flutter project."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  firebase_core: ^4.2.1
+  flutter_foreground_task: ^9.1.0
+  battery_plus: ^7.0.0
+  firebase_database: ^12.0.4
+  geolocator: ^14.0.2
+  connectivity_plus: ^7.0.0
+  cloud_firestore: ^6.1.0
+  network_info_plus: ^7.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true

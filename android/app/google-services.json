@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1001716936721",
+    "project_id": "cargadatos-5e348",
+    "storage_bucket": "cargadatos-5e348.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1001716936721:android:4cdc5ff6452f83f6df41b0",
+        "android_client_info": {
+          "package_name": "com.example.carga_datos"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC-WVM8WGVOA65MTz_hJKz_1KpK-K5I7sQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
