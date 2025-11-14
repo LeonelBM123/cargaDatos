@@ -13,7 +13,8 @@ class WifiSignalMonitor {
   static String _lastSignalLevel = '';
   static String _lastNetworkType = '';
   static String _lastDeviceName = '';
-  static String _lastSimOperator = '';
+  static String _lastSimOperator = 'Sin datos';
+  static String? _savedSimOperator; // Guardar el primer valor no nulo detectado
 
   /// Iniciar el monitoreo del nivel de señal WiFi
   /// y enviar actualizaciones al foreground service
@@ -54,10 +55,19 @@ class WifiSignalMonitor {
           final detailed = await _networkDetector.getDetailedNetworkInfo();
           final operatorName = detailed['operatorName'];
           if (operatorName is String && operatorName.isNotEmpty) {
-            _lastSimOperator = operatorName;
+            // Guardar el primer valor no nulo detectado
+            if (_savedSimOperator == null) {
+              _savedSimOperator = operatorName;
+              print('📶 Operador SIM guardado: $_savedSimOperator');
+            }
+            _lastSimOperator = _savedSimOperator!;
+          } else {
+            // Si es null o vacío, usar el valor guardado o "Sin señal"
+            _lastSimOperator = _savedSimOperator ?? 'Sin señal';
           }
         } catch (e) {
-          // Ignorar error
+          // Si hay error, usar el valor guardado o "Sin señal"
+          _lastSimOperator = _savedSimOperator ?? 'Sin señal';
         }
 
         // Enviar todos los datos al foreground service
@@ -109,10 +119,19 @@ class WifiSignalMonitor {
         final detailed = await _networkDetector.getDetailedNetworkInfo();
         final operatorName = detailed['operatorName'];
         if (operatorName is String && operatorName.isNotEmpty) {
-          _lastSimOperator = operatorName;
+          // Guardar el primer valor no nulo detectado
+          if (_savedSimOperator == null) {
+            _savedSimOperator = operatorName;
+            print('📶 Operador SIM guardado: $_savedSimOperator');
+          }
+          _lastSimOperator = _savedSimOperator!;
+        } else {
+          // Si es null o vacío, usar el valor guardado o "Sin señal"
+          _lastSimOperator = _savedSimOperator ?? 'Sin señal';
         }
       } catch (e) {
-        // Ignorar error
+        // Si hay error, usar el valor guardado o "Sin señal"
+        _lastSimOperator = _savedSimOperator ?? 'Sin señal';
       }
 
       // Enviar todos los datos al foreground service
