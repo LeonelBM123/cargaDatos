@@ -8,6 +8,7 @@ import '../services/foreground_service.dart';
 import '../services/data_service.dart';
 import '../services/wifi_signal_monitor.dart';
 import '../services/network_type_detector.dart';
+import '../services/device_info_detector.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -31,6 +32,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String _battery = "---";
   String _signal = "---";
   String _networkType = "---";
+  String _deviceName = "---";
   String _lastUpdate = "---";
 
   // Opciones de intervalo en minutos
@@ -80,6 +82,8 @@ class _HomeScreenState extends State<HomeScreen> {
       int batteryLevel = await battery.batteryLevel;
       String signal = await _dataService.getSignalLevel();
       String networkType = await _networkDetector.getNetworkType();
+      final deviceDetector = DeviceInfoDetector();
+      String deviceName = await deviceDetector.getDeviceName();
 
       setState(() {
         _latitude = position.latitude.toStringAsFixed(6);
@@ -87,6 +91,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _battery = "$batteryLevel%";
         _signal = signal;
         _networkType = networkType;
+        _deviceName = deviceName;
         _lastUpdate = DateTime.now().toString().substring(11, 19);
       });
     } catch (e) {
@@ -114,7 +119,7 @@ class _HomeScreenState extends State<HomeScreen> {
     await _saveInterval(_selectedInterval);
 
     // Iniciar el monitoreo de señal WiFi
-    WifiSignalMonitor.startMonitoring();
+    await WifiSignalMonitor.startMonitoring();
 
     // Iniciar servicio foreground con el intervalo seleccionado
     bool success = await ForegroundDataService.startService(_selectedInterval);
@@ -411,6 +416,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                 Icons.network_cell,
                                 'Tipo de Red',
                                 _networkType,
+                              ),
+                              _buildDataRow(
+                                Icons.phone_android,
+                                'Dispositivo',
+                                _deviceName,
                               ),
                               _buildDataRow(
                                 Icons.access_time,
