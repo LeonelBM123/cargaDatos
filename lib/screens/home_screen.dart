@@ -7,9 +7,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/foreground_service.dart';
 import '../services/data_service.dart';
 import '../services/wifi_signal_monitor.dart';
+import '../services/network_type_detector.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -17,22 +18,24 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final DataService _dataService = DataService();
-  
+  final NetworkTypeDetector _networkDetector = NetworkTypeDetector();
+
   bool _isServiceRunning = false;
   bool _isLoading = false;
   int _pendingDataCount = 0;
   int _executionCount = 0;
   int _selectedInterval = 3; // Intervalo por defecto: 3 minutos
-  
+
   String _latitude = "---";
   String _longitude = "---";
   String _battery = "---";
   String _signal = "---";
+  String _networkType = "---";
   String _lastUpdate = "---";
-  
+
   // Opciones de intervalo en minutos
   final List<int> _intervalOptions = [1, 3, 5, 10, 15, 30];
-  
+
   @override
   void initState() {
     super.initState();
@@ -40,14 +43,14 @@ class _HomeScreenState extends State<HomeScreen> {
     _checkServiceStatus();
     _loadSavedInterval();
   }
-  
+
   Future<void> _loadSavedInterval() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _selectedInterval = prefs.getInt('data_interval') ?? 3;
     });
   }
-  
+
   Future<void> _saveInterval(int interval) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('data_interval', interval);
@@ -55,96 +58,101 @@ class _HomeScreenState extends State<HomeScreen> {
       _selectedInterval = interval;
     });
   }
-  
+
   Future<void> _checkServiceStatus() async {
     final isRunning = await ForegroundDataService.isRunning();
     setState(() {
       _isServiceRunning = isRunning;
     });
   }
-  
+
   Future<void> _loadPendingDataCount() async {
     final count = await _dataService.getPendingDataCount();
     setState(() {
       _pendingDataCount = count;
     });
   }
-  
+
   Future<void> _updateCurrentData() async {
     try {
       Position position = await Geolocator.getCurrentPosition();
       Battery battery = Battery();
       int batteryLevel = await battery.batteryLevel;
       String signal = await _dataService.getSignalLevel();
-      
+      String networkType = await _networkDetector.getNetworkType();
+
       setState(() {
         _latitude = position.latitude.toStringAsFixed(6);
         _longitude = position.longitude.toStringAsFixed(6);
         _battery = "$batteryLevel%";
         _signal = signal;
+        _networkType = networkType;
+        _lastUpdate = DateTime.now().toString().substring(11, 19);
       });
     } catch (e) {
       _showSnackBar("Error al obtener datos: $e", isError: true);
     }
   }
-  
+
   Future<void> _startService() async {
     setState(() => _isLoading = true);
-    
+
     // Solicitar permisos de ubicación
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
     }
-    
-    if (permission == LocationPermission.deniedForever || 
+
+    if (permission == LocationPermission.deniedForever ||
         permission == LocationPermission.denied) {
       _showSnackBar("Permisos de ubicación denegados", isError: true);
       setState(() => _isLoading = false);
       return;
     }
-    
+
     // Guardar el intervalo antes de iniciar
     await _saveInterval(_selectedInterval);
-    
+
     // Iniciar el monitoreo de señal WiFi
     WifiSignalMonitor.startMonitoring();
-    
+
     // Iniciar servicio foreground con el intervalo seleccionado
     bool success = await ForegroundDataService.startService(_selectedInterval);
-    
+
     setState(() {
       _isServiceRunning = success;
       _isLoading = false;
     });
-    
+
     if (success) {
-      _showSnackBar("Servicio iniciado - ejecutándose cada $_selectedInterval minutos");
+      _showSnackBar(
+        "Servicio iniciado - ejecutándose cada $_selectedInterval minutos",
+      );
       await _updateCurrentData();
     } else {
       _showSnackBar("Error al iniciar servicio", isError: true);
     }
   }
-  
+
   Future<void> _stopService() async {
     setState(() => _isLoading = true);
-    
+
     // Detener el monitoreo de señal WiFi
     WifiSignalMonitor.stopMonitoring();
-    
+
     bool success = await ForegroundDataService.stopService();
-    
+
     setState(() {
       _isServiceRunning = !success;
       _isLoading = false;
     });
-    
+
     _showSnackBar("Servicio detenido");
   }
-  
+
   Future<void> _sendManually() async {
     setState(() => _isLoading = true);
-    
+
     try {
       await _dataService.collectAndSendData();
       await _loadPendingDataCount();
@@ -153,18 +161,18 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       _showSnackBar("Error al enviar datos: $e", isError: true);
     }
-    
+
     setState(() => _isLoading = false);
   }
-  
+
   Future<void> _syncPendingData() async {
     if (_pendingDataCount == 0) {
       _showSnackBar("No hay datos pendientes por sincronizar");
       return;
     }
-    
+
     setState(() => _isLoading = true);
-    
+
     try {
       await _dataService.sendPendingData();
       await _loadPendingDataCount();
@@ -172,10 +180,10 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       _showSnackBar("Error al sincronizar: $e", isError: true);
     }
-    
+
     setState(() => _isLoading = false);
   }
-  
+
   void _showSnackBar(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -185,7 +193,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-  
+
   Widget _buildDataRow(IconData icon, String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -194,14 +202,17 @@ class _HomeScreenState extends State<HomeScreen> {
           Icon(icon, size: 20, color: Colors.blue),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
           ),
           Text(value, style: const TextStyle(color: Colors.grey)),
         ],
       ),
     );
   }
-  
+
   @override
   Widget build(BuildContext context) {
     return WithForegroundTask(
@@ -241,10 +252,13 @@ class _HomeScreenState extends State<HomeScreen> {
                                     const SizedBox(width: 8),
                                     Text(
                                       'Intervalo de Envío',
-                                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.blue[900],
-                                      ),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.blue[900],
+                                          ),
                                     ),
                                   ],
                                 ),
@@ -253,7 +267,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                   spacing: 8,
                                   runSpacing: 8,
                                   children: _intervalOptions.map((interval) {
-                                    final isSelected = interval == _selectedInterval;
+                                    final isSelected =
+                                        interval == _selectedInterval;
                                     return ChoiceChip(
                                       label: Text('$interval min'),
                                       selected: isSelected,
@@ -266,8 +281,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                       },
                                       selectedColor: Colors.blue[700],
                                       labelStyle: TextStyle(
-                                        color: isSelected ? Colors.white : Colors.black87,
-                                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                        color: isSelected
+                                            ? Colors.white
+                                            : Colors.black87,
+                                        fontWeight: isSelected
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
                                       ),
                                     );
                                   }).toList(),
@@ -286,7 +305,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         const SizedBox(height: 16),
                       ],
-                      
+
                       // Estado del servicio
                       Card(
                         elevation: 4,
@@ -295,13 +314,19 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: Column(
                             children: [
                               Icon(
-                                _isServiceRunning ? Icons.cloud_done : Icons.cloud_off,
+                                _isServiceRunning
+                                    ? Icons.cloud_done
+                                    : Icons.cloud_off,
                                 size: 48,
-                                color: _isServiceRunning ? Colors.green : Colors.grey,
+                                color: _isServiceRunning
+                                    ? Colors.green
+                                    : Colors.grey,
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                _isServiceRunning ? 'Servicio Activo' : 'Servicio Inactivo',
+                                _isServiceRunning
+                                    ? 'Servicio Activo'
+                                    : 'Servicio Inactivo',
                                 style: Theme.of(context).textTheme.titleLarge,
                               ),
                               if (_isServiceRunning) ...[
@@ -319,11 +344,23 @@ class _HomeScreenState extends State<HomeScreen> {
                               SizedBox(
                                 width: double.infinity,
                                 child: ElevatedButton.icon(
-                                  onPressed: _isServiceRunning ? _stopService : _startService,
-                                  icon: Icon(_isServiceRunning ? Icons.stop : Icons.play_arrow),
-                                  label: Text(_isServiceRunning ? 'Detener Servicio' : 'Iniciar Servicio'),
+                                  onPressed: _isServiceRunning
+                                      ? _stopService
+                                      : _startService,
+                                  icon: Icon(
+                                    _isServiceRunning
+                                        ? Icons.stop
+                                        : Icons.play_arrow,
+                                  ),
+                                  label: Text(
+                                    _isServiceRunning
+                                        ? 'Detener Servicio'
+                                        : 'Iniciar Servicio',
+                                  ),
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: _isServiceRunning ? Colors.red : Colors.green,
+                                    backgroundColor: _isServiceRunning
+                                        ? Colors.red
+                                        : Colors.green,
                                     foregroundColor: Colors.white,
                                     padding: const EdgeInsets.all(16),
                                   ),
@@ -333,9 +370,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                       ),
-                      
+
                       const SizedBox(height: 16),
-                      
+
                       // Datos actuales
                       Card(
                         elevation: 4,
@@ -346,23 +383,47 @@ class _HomeScreenState extends State<HomeScreen> {
                             children: [
                               Text(
                                 'Datos Actuales',
-                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.bold),
                               ),
                               const Divider(),
-                              _buildDataRow(Icons.location_on, 'Latitud', _latitude),
-                              _buildDataRow(Icons.my_location, 'Longitud', _longitude),
-                              _buildDataRow(Icons.battery_full, 'Batería', _battery),
-                              _buildDataRow(Icons.signal_cellular_alt, 'Señal', _signal),
-                              _buildDataRow(Icons.access_time, 'Última actualización', _lastUpdate),
+                              _buildDataRow(
+                                Icons.location_on,
+                                'Latitud',
+                                _latitude,
+                              ),
+                              _buildDataRow(
+                                Icons.my_location,
+                                'Longitud',
+                                _longitude,
+                              ),
+                              _buildDataRow(
+                                Icons.battery_full,
+                                'Batería',
+                                _battery,
+                              ),
+                              _buildDataRow(
+                                Icons.signal_cellular_alt,
+                                'Señal',
+                                _signal,
+                              ),
+                              _buildDataRow(
+                                Icons.network_cell,
+                                'Tipo de Red',
+                                _networkType,
+                              ),
+                              _buildDataRow(
+                                Icons.access_time,
+                                'Última actualización',
+                                _lastUpdate,
+                              ),
                             ],
                           ),
                         ),
                       ),
-                      
+
                       const SizedBox(height: 16),
-                      
+
                       // Datos pendientes y acciones
                       Card(
                         elevation: 4,
@@ -372,18 +433,24 @@ class _HomeScreenState extends State<HomeScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
                                     'Datos Pendientes',
-                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(fontWeight: FontWeight.bold),
                                   ),
                                   Chip(
                                     label: Text('$_pendingDataCount'),
-                                    backgroundColor: _pendingDataCount > 0 ? Colors.orange : Colors.green,
-                                    labelStyle: const TextStyle(color: Colors.white),
+                                    backgroundColor: _pendingDataCount > 0
+                                        ? Colors.orange
+                                        : Colors.green,
+                                    labelStyle: const TextStyle(
+                                      color: Colors.white,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -415,9 +482,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                       ),
-                      
+
                       const SizedBox(height: 16),
-                      
+
                       // Información
                       Card(
                         color: Colors.blue[50],
@@ -428,14 +495,20 @@ class _HomeScreenState extends State<HomeScreen> {
                             children: [
                               Row(
                                 children: [
-                                  const Icon(Icons.info_outline, color: Colors.blue),
+                                  const Icon(
+                                    Icons.info_outline,
+                                    color: Colors.blue,
+                                  ),
                                   const SizedBox(width: 8),
                                   Text(
                                     'Información',
-                                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                      color: Colors.blue[900],
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleSmall
+                                        ?.copyWith(
+                                          color: Colors.blue[900],
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                   ),
                                 ],
                               ),
@@ -445,7 +518,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                 '• Los datos se guardan localmente si no hay conexión\n'
                                 '• Se sincronizan automáticamente al recuperar conexión\n'
                                 '• Desliza hacia abajo para refrescar',
-                                style: TextStyle(color: Colors.blue[900], fontSize: 12),
+                                style: TextStyle(
+                                  color: Colors.blue[900],
+                                  fontSize: 12,
+                                ),
                               ),
                             ],
                           ),
@@ -458,7 +534,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-  
+
   @override
   void dispose() {
     FlutterForegroundTask.clearAllData();

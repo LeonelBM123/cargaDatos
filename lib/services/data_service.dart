@@ -7,6 +7,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import '../supabase_options.dart';
+import 'network_type_detector.dart';
 
 class DataService {
   // Usar Supabase en lugar de Firestore
@@ -61,6 +62,7 @@ class DataService {
     required int batteryLevel,
     required String signalLevel,
     required DateTime timestamp,
+    String? networkType,
   }) {
     // Convertir signal de String a int (o null si está vacío)
     int? signalValue;
@@ -81,10 +83,10 @@ class DataService {
       'battery': batteryLevel, // smallint
       'signal': signalValue, // smallint - Puede ser null
       'timestamp': timestamp.toIso8601String(), // timestamp without time zone
+      'network_type': networkType, // varchar - Tipo de red (2G/3G/4G/5G/WiFi)
       // Campos opcionales que no estamos capturando aún:
       // 'device_name': null,
       // 'sim_operator': null,
-      // 'network_type': null,
       // 'temperature': null,
     };
   }
@@ -233,7 +235,11 @@ class DataService {
   /// Función principal: Recolectar y enviar datos
   /// [signalLevelOverride] permite pasar el nivel de señal desde el isolate principal
   /// cuando se ejecuta desde un foreground service (donde MethodChannel no funciona)
-  Future<void> collectAndSendData({String? signalLevelOverride}) async {
+  /// [networkTypeOverride] permite pasar el tipo de red desde el isolate principal
+  Future<void> collectAndSendData({
+    String? signalLevelOverride,
+    String? networkTypeOverride,
+  }) async {
     print("\n🔄 ========== INICIANDO RECOLECCIÓN DE DATOS ==========");
 
     try {
@@ -268,6 +274,25 @@ class DataService {
         print("✅ Señal: $signalLevel");
       }
 
+      // 3.5. Obtener tipo de red
+      print("📡 Obteniendo tipo de red...");
+      String? networkType;
+      if (networkTypeOverride != null) {
+        // Usar el valor proporcionado desde el isolate principal
+        networkType = networkTypeOverride;
+        print("✅ Tipo de red (desde isolate principal): $networkType");
+      } else {
+        // Intentar obtenerlo directamente (solo funciona en isolate principal)
+        try {
+          final networkDetector = NetworkTypeDetector();
+          networkType = await networkDetector.getNetworkType();
+          print("✅ Tipo de red: $networkType");
+        } catch (e) {
+          print("⚠️ Error al obtener tipo de red: $e");
+          networkType = null;
+        }
+      }
+
       // 4. Crear punto de datos
       Map<String, dynamic> dataPoint = createDataPoint(
         latitude: position.latitude,
@@ -277,6 +302,7 @@ class DataService {
         batteryLevel: batteryLevel,
         signalLevel: signalLevel,
         timestamp: DateTime.now(),
+        networkType: networkType,
       );
 
       print("📦 Datos creados: $dataPoint");
