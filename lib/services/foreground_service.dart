@@ -21,6 +21,8 @@ class DataTaskHandler extends TaskHandler {
   int _intervalMinutes = 3; // Intervalo por defecto
   String _wifiSignal = ''; // Nivel de señal WiFi recibido del isolate principal
   String _networkType = ''; // Tipo de red recibido del isolate principal
+  String _deviceName =
+      ''; // Nombre del dispositivo recibido del isolate principal
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
@@ -70,6 +72,9 @@ class DataTaskHandler extends TaskHandler {
       if (data.containsKey('network_type')) {
         _networkType = data['network_type'].toString();
       }
+      if (data.containsKey('device_name')) {
+        _deviceName = data['device_name'].toString();
+      }
     }
   }
 
@@ -86,10 +91,11 @@ class DataTaskHandler extends TaskHandler {
     try {
       final dataService = DataService();
 
-      // Recolectar y enviar datos, pasando el nivel de señal y tipo de red si están disponibles
+      // Recolectar y enviar datos, pasando el nivel de señal, tipo de red y dispositivo si están disponibles
       await dataService.collectAndSendData(
         signalLevelOverride: _wifiSignal.isNotEmpty ? _wifiSignal : null,
         networkTypeOverride: _networkType.isNotEmpty ? _networkType : null,
+        deviceNameOverride: _deviceName.isNotEmpty ? _deviceName : null,
       );
 
       // Obtener conteo de datos pendientes

@@ -3,19 +3,33 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'network_type_detector.dart';
+import 'device_info_detector.dart';
 
 class WifiSignalMonitor {
   static const platform = MethodChannel('com.example.carga_datos/wifi');
   static final _networkDetector = NetworkTypeDetector();
+  static final _deviceDetector = DeviceInfoDetector();
   static Timer? _timer;
   static String _lastSignalLevel = '';
   static String _lastNetworkType = '';
+  static String _lastDeviceName = '';
 
   /// Iniciar el monitoreo del nivel de señal WiFi
   /// y enviar actualizaciones al foreground service
-  static void startMonitoring() {
+  static Future<void> startMonitoring() async {
     // Detener timer anterior si existe
     _timer?.cancel();
+
+    // Obtener device_name inmediatamente (solo una vez)
+    if (_lastDeviceName.isEmpty) {
+      try {
+        final deviceName = await _deviceDetector.getDeviceName();
+        _lastDeviceName = deviceName;
+        print('📱 Device name detectado en inicio: $_lastDeviceName');
+      } catch (e) {
+        print('⚠️ Error al obtener device name inicial: $e');
+      }
+    }
 
     // Actualizar cada 10 segundos
     _timer = Timer.periodic(const Duration(seconds: 10), (timer) async {
@@ -34,18 +48,19 @@ class WifiSignalMonitor {
           // Ignorar error
         }
 
-        // Enviar ambos datos al foreground service
+        // Enviar todos los datos al foreground service
         FlutterForegroundTask.sendDataToTask({
           'wifi_signal': _lastSignalLevel,
           'network_type': _lastNetworkType,
+          'device_name': _lastDeviceName,
         });
       } catch (e) {
         _lastSignalLevel = '';
       }
     });
 
-    // También obtener inmediatamente
-    _updateSignalLevel();
+    // También obtener inmediatamente (señal y network_type)
+    await _updateSignalLevel();
   }
 
   /// Detener el monitoreo
@@ -76,10 +91,11 @@ class WifiSignalMonitor {
         // Ignorar error
       }
 
-      // Enviar ambos datos al foreground service
+      // Enviar todos los datos al foreground service
       FlutterForegroundTask.sendDataToTask({
         'wifi_signal': _lastSignalLevel,
         'network_type': _lastNetworkType,
+        'device_name': _lastDeviceName,
       });
     } catch (e) {
       _lastSignalLevel = '';
