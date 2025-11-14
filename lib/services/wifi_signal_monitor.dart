@@ -13,6 +13,7 @@ class WifiSignalMonitor {
   static String _lastSignalLevel = '';
   static String _lastNetworkType = '';
   static String _lastDeviceName = '';
+  static String _lastSimOperator = '';
 
   /// Iniciar el monitoreo del nivel de señal WiFi
   /// y enviar actualizaciones al foreground service
@@ -48,11 +49,23 @@ class WifiSignalMonitor {
           // Ignorar error
         }
 
+        // Obtener operador de la SIM (si es posible)
+        try {
+          final detailed = await _networkDetector.getDetailedNetworkInfo();
+          final operatorName = detailed['operatorName'];
+          if (operatorName is String && operatorName.isNotEmpty) {
+            _lastSimOperator = operatorName;
+          }
+        } catch (e) {
+          // Ignorar error
+        }
+
         // Enviar todos los datos al foreground service
         FlutterForegroundTask.sendDataToTask({
           'wifi_signal': _lastSignalLevel,
           'network_type': _lastNetworkType,
           'device_name': _lastDeviceName,
+          'sim_operator': _lastSimOperator,
         });
       } catch (e) {
         _lastSignalLevel = '';
@@ -91,11 +104,23 @@ class WifiSignalMonitor {
         // Ignorar error
       }
 
+      // Obtener operador de la SIM (si es posible)
+      try {
+        final detailed = await _networkDetector.getDetailedNetworkInfo();
+        final operatorName = detailed['operatorName'];
+        if (operatorName is String && operatorName.isNotEmpty) {
+          _lastSimOperator = operatorName;
+        }
+      } catch (e) {
+        // Ignorar error
+      }
+
       // Enviar todos los datos al foreground service
       FlutterForegroundTask.sendDataToTask({
         'wifi_signal': _lastSignalLevel,
         'network_type': _lastNetworkType,
         'device_name': _lastDeviceName,
+        'sim_operator': _lastSimOperator,
       });
     } catch (e) {
       _lastSignalLevel = '';

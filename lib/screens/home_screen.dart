@@ -33,6 +33,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String _signal = "---";
   String _networkType = "---";
   String _deviceName = "---";
+  String _simOperator = "---";
   String _lastUpdate = "---";
 
   // Opciones de intervalo en minutos
@@ -85,6 +86,20 @@ class _HomeScreenState extends State<HomeScreen> {
       final deviceDetector = DeviceInfoDetector();
       String deviceName = await deviceDetector.getDeviceName();
 
+      // Obtener operador SIM
+      String simOperator = "---";
+      try {
+        final detailedInfo = await _networkDetector.getDetailedNetworkInfo();
+        final operatorName = detailedInfo['operatorName'];
+        if (operatorName is String &&
+            operatorName.isNotEmpty &&
+            operatorName != 'Unknown') {
+          simOperator = operatorName;
+        }
+      } catch (e) {
+        print("⚠️ Error al obtener operador: $e");
+      }
+
       setState(() {
         _latitude = position.latitude.toStringAsFixed(6);
         _longitude = position.longitude.toStringAsFixed(6);
@@ -92,6 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _signal = signal;
         _networkType = networkType;
         _deviceName = deviceName;
+        _simOperator = simOperator;
         _lastUpdate = DateTime.now().toString().substring(11, 19);
       });
     } catch (e) {
@@ -421,6 +437,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                 Icons.phone_android,
                                 'Dispositivo',
                                 _deviceName,
+                              ),
+                              _buildDataRow(
+                                Icons.sim_card,
+                                'Operador SIM',
+                                _simOperator,
                               ),
                               _buildDataRow(
                                 Icons.access_time,

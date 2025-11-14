@@ -6,6 +6,7 @@ import 'package:battery_plus/battery_plus.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../supabase_options.dart';
 import 'network_type_detector.dart';
 import 'device_info_detector.dart';
@@ -65,6 +66,7 @@ class DataService {
     required DateTime timestamp,
     String? networkType,
     String? deviceName,
+    String? simOperator,
   }) {
     // Convertir signal de String a int (o null si está vacío)
     int? signalValue;
@@ -88,7 +90,7 @@ class DataService {
       'network_type': networkType, // varchar - Tipo de red (2G/3G/4G/5G/WiFi)
       'device_name': deviceName, // varchar - Marca y modelo del dispositivo
       // Campos opcionales que no estamos capturando aún:
-      // 'sim_operator': null,
+      'sim_operator': simOperator,
       // 'temperature': null,
     };
   }
@@ -234,6 +236,33 @@ class DataService {
     }
   }
 
+  /// Verificar y solicitar permiso READ_PHONE_STATE para acceder a información del operador SIM
+  Future<void> checkAndRequestPhonePermission() async {
+    try {
+      final status = await Permission.phone.status;
+
+      if (status.isDenied || status.isRestricted) {
+        print("📱 Solicitando permiso READ_PHONE_STATE...");
+        final result = await Permission.phone.request();
+
+        if (result.isGranted) {
+          print("✅ Permiso READ_PHONE_STATE concedido");
+        } else if (result.isPermanentlyDenied) {
+          print("⚠️ Permiso READ_PHONE_STATE denegado permanentemente");
+          print(
+            "💡 El usuario debe habilitarlo manualmente desde Configuración",
+          );
+        } else {
+          print("⚠️ Permiso READ_PHONE_STATE denegado");
+        }
+      } else if (status.isGranted) {
+        print("✅ Permiso READ_PHONE_STATE ya concedido");
+      }
+    } catch (e) {
+      print("⚠️ Error al verificar/solicitar permiso de teléfono: $e");
+    }
+  }
+
   /// Función principal: Recolectar y enviar datos
   /// [signalLevelOverride] permite pasar el nivel de señal desde el isolate principal
   /// cuando se ejecuta desde un foreground service (donde MethodChannel no funciona)
@@ -243,10 +272,14 @@ class DataService {
     String? signalLevelOverride,
     String? networkTypeOverride,
     String? deviceNameOverride,
+    String? simOperatorOverride,
   }) async {
     print("\n🔄 ========== INICIANDO RECOLECCIÓN DE DATOS ==========");
 
     try {
+      // 0. Solicitar permiso de teléfono para obtener operador SIM
+      await checkAndRequestPhonePermission();
+
       // 1. Obtener ubicación
       print("📍 Obteniendo ubicación...");
       Position position = await Geolocator.getCurrentPosition(
@@ -316,6 +349,29 @@ class DataService {
         }
       }
 
+      // 3.7. Obtener operador de la SIM (carrier)
+      print("📶 Obteniendo operador de la SIM...");
+      String? simOperator;
+      if (simOperatorOverride != null) {
+        simOperator = simOperatorOverride;
+        print("✅ Operador (desde isolate principal): $simOperator");
+      } else {
+        try {
+          final networkDetector = NetworkTypeDetector();
+          final detailed = await networkDetector.getDetailedNetworkInfo();
+          final operatorName = detailed['operatorName'];
+          if (operatorName is String && operatorName.isNotEmpty) {
+            simOperator = operatorName;
+          } else {
+            simOperator = null;
+          }
+          print("✅ Operador detectado: ${simOperator ?? 'desconocido'}");
+        } catch (e) {
+          print("⚠️ Error al obtener operador de la SIM: $e");
+          simOperator = null;
+        }
+      }
+
       // 4. Crear punto de datos
       Map<String, dynamic> dataPoint = createDataPoint(
         latitude: position.latitude,
@@ -327,6 +383,7 @@ class DataService {
         timestamp: DateTime.now(),
         networkType: networkType,
         deviceName: deviceName,
+        simOperator: simOperator,
       );
 
       print("📦 Datos creados: $dataPoint");

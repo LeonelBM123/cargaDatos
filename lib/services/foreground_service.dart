@@ -23,6 +23,7 @@ class DataTaskHandler extends TaskHandler {
   String _networkType = ''; // Tipo de red recibido del isolate principal
   String _deviceName =
       ''; // Nombre del dispositivo recibido del isolate principal
+  String _simOperator = ''; // Operador de la SIM recibido del isolate principal
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
@@ -75,6 +76,9 @@ class DataTaskHandler extends TaskHandler {
       if (data.containsKey('device_name')) {
         _deviceName = data['device_name'].toString();
       }
+      if (data.containsKey('sim_operator')) {
+        _simOperator = data['sim_operator']?.toString() ?? '';
+      }
     }
   }
 
@@ -96,6 +100,7 @@ class DataTaskHandler extends TaskHandler {
         signalLevelOverride: _wifiSignal.isNotEmpty ? _wifiSignal : null,
         networkTypeOverride: _networkType.isNotEmpty ? _networkType : null,
         deviceNameOverride: _deviceName.isNotEmpty ? _deviceName : null,
+        simOperatorOverride: _simOperator.isNotEmpty ? _simOperator : null,
       );
 
       // Obtener conteo de datos pendientes

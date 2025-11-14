@@ -266,8 +266,35 @@ class MainActivity : FlutterActivity() {
                 else -> "Unknown"
             }
             
-            val operatorName = telephonyManager.networkOperatorName ?: "Unknown"
-            val isRoaming = telephonyManager.isNetworkRoaming
+            // Intentar distintos métodos para obtener el nombre del operador
+            var operatorName: String? = null
+            try {
+                operatorName = telephonyManager.networkOperatorName
+            } catch (_: Exception) {
+                // ignore
+            }
+
+            if (operatorName.isNullOrEmpty()) {
+                try {
+                    operatorName = telephonyManager.simOperatorName
+                } catch (_: Exception) {
+                    // ignore
+                }
+            }
+
+            if (operatorName.isNullOrEmpty()) {
+                try {
+                    operatorName = telephonyManager.simOperator
+                } catch (_: Exception) {
+                    // ignore
+                }
+            }
+
+            if (operatorName.isNullOrEmpty()) {
+                operatorName = "Unknown"
+            }
+
+            val isRoaming = try { telephonyManager.isNetworkRoaming } catch (_: Exception) { false }
             
             return mapOf(
                 "type" to networkType,

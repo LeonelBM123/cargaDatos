@@ -18,6 +18,7 @@ dependencies:
   network_info_plus: ^7.0.0
   shared_preferences: ^2.3.3
   device_info_plus: ^12.2.0
+  permission_handler: ^11.3.1
 
 dev_dependencies:
   flutter_test:
