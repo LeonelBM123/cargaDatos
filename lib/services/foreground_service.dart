@@ -20,6 +20,7 @@ class DataTaskHandler extends TaskHandler {
   bool _isInitialized = false;
   int _intervalMinutes = 3; // Intervalo por defecto
   String _wifiSignal = ''; // Nivel de señal WiFi recibido del isolate principal
+  String _networkType = ''; // Tipo de red recibido del isolate principal
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
@@ -39,7 +40,9 @@ class DataTaskHandler extends TaskHandler {
       // Cargar el intervalo guardado
       final prefs = await SharedPreferences.getInstance();
       _intervalMinutes = prefs.getInt('data_interval') ?? 3;
-      print('⏰ Intervalo configurado: $_intervalMinutes minutos');
+
+      // Esperar 2 segundos para que el monitor envíe los datos iniciales
+      await Future.delayed(const Duration(seconds: 2));
 
       // Ejecutar inmediatamente al iniciar
       await _executeTask();
@@ -63,7 +66,9 @@ class DataTaskHandler extends TaskHandler {
     if (data is Map) {
       if (data.containsKey('wifi_signal')) {
         _wifiSignal = data['wifi_signal'].toString();
-        print('📡 Señal WiFi recibida del isolate principal: $_wifiSignal dBm');
+      }
+      if (data.containsKey('network_type')) {
+        _networkType = data['network_type'].toString();
       }
     }
   }
@@ -81,9 +86,10 @@ class DataTaskHandler extends TaskHandler {
     try {
       final dataService = DataService();
 
-      // Recolectar y enviar datos, pasando el nivel de señal si está disponible
+      // Recolectar y enviar datos, pasando el nivel de señal y tipo de red si están disponibles
       await dataService.collectAndSendData(
         signalLevelOverride: _wifiSignal.isNotEmpty ? _wifiSignal : null,
+        networkTypeOverride: _networkType.isNotEmpty ? _networkType : null,
       );
 
       // Obtener conteo de datos pendientes
